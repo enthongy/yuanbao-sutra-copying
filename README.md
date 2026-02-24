@@ -3,13 +3,12 @@
 [![Live Demo](https://img.shields.io/badge/demo-vercel-blue?style=for-the-badge&logo=vercel)](https://yuanbao-sutra-copying.vercel.app/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **[🌐 Live Demo → https://yuanbao-sutra-copying.vercel.app/](https://yuanbao-sutra-copying.vercel.app/)**
 
 A serene digital platform for Buddhist sutra copying practice. Generate beautiful, customizable PDF templates for meditation and spiritual cultivation.
 
-![App Preview](src/public/patterns/space.jpg)
+![App Preview](/public/patterns/space.jpg)
 
 ## ✨ Features
 
@@ -97,10 +96,6 @@ Contributions welcome! Feel free to submit a Pull Request.
 3. Commit changes (`git commit -m 'Add AmazingFeature'`)
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file.
 
 ## 🙏 Acknowledgments
 
