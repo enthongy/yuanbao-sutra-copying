@@ -8,7 +8,7 @@
 
 A serene digital platform for Buddhist sutra copying practice. Generate beautiful, customizable PDF templates for meditation and spiritual cultivation.
 
-![App Preview](/public/patterns/space.jpg)
+![App Preview](/public/patterns/screencapture.png)
 
 ## ✨ Features
 
