@@ -61,12 +61,15 @@ class Database {
   private db: IDBPDatabase<SutraDB> | null = null;
 
   async init() {
-
-    this.db = await openDB<SutraDB>('sutra-db', 1, {
+    this.db = await openDB<SutraDB>('sutra-db', 2, {
       upgrade(db, oldVersion, newVersion, transaction) {
         console.log('Upgrading database from version', oldVersion, 'to', newVersion);
-
-        if (!db.objectStoreNames.contains('sutras')) {
+        
+        if (oldVersion < 2) {
+          if (db.objectStoreNames.contains('sutras')) {
+            db.deleteObjectStore('sutras');
+          }
+          
           const store = db.createObjectStore('sutras', { 
             keyPath: 'id', 
             autoIncrement: true 
@@ -76,7 +79,7 @@ class Database {
           for (const sutra of INITIAL_SUTRAS) {
             store.add(sutra as Sutra);
           }
-          console.log('Initial sutras added during database creation');
+          console.log('Database reset and seeded with fresh data (no duplicates)');
         }
       },
     });
