@@ -76,7 +76,7 @@ async function loadFont(url: string): Promise<Uint8Array> {
   }
 }
 
-async function loadImage(url: string) {
+async function loadImage(url: string): Promise<Uint8Array> {
   try {
     const baseUrl = window.location.origin;
     const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
@@ -93,13 +93,37 @@ async function loadImage(url: string) {
   }
 }
 
+/**
+ * Convert data URL to Uint8Array for PDF embedding
+ */
+function dataURLToUint8Array(dataURL: string): Uint8Array {
+  const base64 = dataURL.split(',')[1];
+  const binaryString = window.atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Detect image type from data URL
+ */
+function getImageTypeFromDataURL(dataURL: string): 'jpg' | 'png' {
+  if (dataURL.startsWith('data:image/jpeg') || dataURL.startsWith('data:image/jpg')) {
+    return 'jpg';
+  }
+  return 'png'; // Default to PNG for other types
+}
+
 /* =========================
    MAIN GENERATOR
 ========================= */
 
 export async function generatePDF(
   sutra: Sutra,
-  config: AppConfig
+  config: AppConfig,
+  customBgImage?: string | null
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create()
   pdfDoc.registerFontkit(fontkit)
@@ -123,11 +147,27 @@ export async function generatePDF(
 
   /* ---------- Load Background ---------- */
   let bgImage: any = null
+  
   try {
-    console.log(`Loading background from: ${BACKGROUND_IMAGES[config.theme]}`)
-    const imageBytes = await loadImage(BACKGROUND_IMAGES[config.theme])
-    bgImage = await pdfDoc.embedJpg(imageBytes)
-    console.log("Background loaded successfully")
+    if (customBgImage) {
+      // Handle custom background image from file upload
+      console.log("Loading custom background image from data URL");
+      const imageBytes = dataURLToUint8Array(customBgImage);
+      const imageType = getImageTypeFromDataURL(customBgImage);
+      
+      if (imageType === 'jpg') {
+        bgImage = await pdfDoc.embedJpg(imageBytes);
+      } else {
+        bgImage = await pdfDoc.embedPng(imageBytes);
+      }
+      console.log("Custom background loaded successfully");
+    } else {
+      // Use theme background
+      console.log(`Loading theme background from: ${BACKGROUND_IMAGES[config.theme]}`)
+      const imageBytes = await loadImage(BACKGROUND_IMAGES[config.theme])
+      bgImage = await pdfDoc.embedJpg(imageBytes)
+      console.log("Theme background loaded successfully")
+    }
   } catch (err) {
     console.warn("Background load failed, continuing without background")
     // Continue without background - it's optional
@@ -148,16 +188,24 @@ export async function generatePDF(
     if (!bgImage) return
 
     const { width, height } = page.getSize()
+    
+    // Calculate scale to cover the entire page while maintaining aspect ratio
     const scale = Math.max(
       width / bgImage.width,
       height / bgImage.height
     )
 
+    // Center the image
+    const scaledWidth = bgImage.width * scale
+    const scaledHeight = bgImage.height * scale
+    const x = (width - scaledWidth) / 2
+    const y = (height - scaledHeight) / 2
+
     page.drawImage(bgImage, {
-      x: 0,
-      y: 0,
-      width: bgImage.width * scale,
-      height: bgImage.height * scale,
+      x,
+      y,
+      width: scaledWidth,
+      height: scaledHeight,
       opacity: 0.15,
     })
   }
@@ -184,6 +232,16 @@ export async function generatePDF(
      1️⃣ Ritual Page
   ========================= */
   const ritualPage = pdfDoc.addPage([841.89, 595.28])
+  
+  // Set background color first
+  ritualPage.drawRectangle({
+    x: 0,
+    y: 0,
+    width: ritualPage.getWidth(),
+    height: ritualPage.getHeight(),
+    color: activeTheme.bg,
+  })
+  
   drawBackground(ritualPage)
 
   const { height: rHeight } = ritualPage.getSize()
@@ -211,6 +269,15 @@ export async function generatePDF(
     const page = pdfDoc.addPage([841.89, 595.28])
     const { width, height } = page.getSize()
 
+    // Set background color
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      color: activeTheme.bg,
+    })
+    
     drawBackground(page)
 
     const marginX = 60
@@ -295,6 +362,16 @@ export async function generatePDF(
      3️⃣ Dedication Page
   ========================= */
   const dedicationPage = pdfDoc.addPage([841.89, 595.28])
+  
+  // Set background color
+  dedicationPage.drawRectangle({
+    x: 0,
+    y: 0,
+    width: dedicationPage.getWidth(),
+    height: dedicationPage.getHeight(),
+    color: activeTheme.bg,
+  })
+  
   drawBackground(dedicationPage)
 
   const { width: dWidth, height: dHeight } = dedicationPage.getSize()
