@@ -2,6 +2,7 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { Sutra } from './types';
 
+// Initial sutras data (migrated from db.ts)
 const INITIAL_SUTRAS: Omit<Sutra, 'id'>[] = [
   {
     title: '般若波羅蜜多心經',
@@ -61,21 +62,26 @@ class Database {
   private db: IDBPDatabase<SutraDB> | null = null;
 
   async init() {
+    // Open the database with version 2 to force upgrade if needed
     this.db = await openDB<SutraDB>('sutra-db', 2, {
       upgrade(db, oldVersion, newVersion, transaction) {
         console.log('Upgrading database from version', oldVersion, 'to', newVersion);
         
+        // If upgrading from version 1 to 2, delete the old store and recreate
         if (oldVersion < 2) {
+          // Delete existing store if it exists
           if (db.objectStoreNames.contains('sutras')) {
             db.deleteObjectStore('sutras');
           }
           
+          // Create fresh store
           const store = db.createObjectStore('sutras', { 
             keyPath: 'id', 
             autoIncrement: true 
           });
           store.createIndex('by-title', 'title');
           
+          // Seed data once during upgrade
           for (const sutra of INITIAL_SUTRAS) {
             store.add(sutra as Sutra);
           }
@@ -84,6 +90,7 @@ class Database {
       },
     });
 
+    // Log the count to verify
     const count = await this.db.count('sutras');
     console.log('Current sutras count:', count);
     
