@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sutra, AppConfig, ThemeType, FontType, TracingColor } from './types';
 import { THEMES, DEFAULT_CONFIG } from './constants';
-import { Download, Music, Calendar, Clock, Info, ChevronLeft, ChevronRight, Settings, Play, Pause, CheckCircle2 } from 'lucide-react';
+import { Download, Music, Calendar, Clock, Info, ChevronLeft, ChevronRight, Settings, Play, Pause, CheckCircle2, Search, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -51,8 +51,13 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [dailyStats, setDailyStats] = useState<Record<string, number>>({});
   const [bgImages, setBgImages] = useState<Record<string, string>>({});
+  const [customBgImage, setCustomBgImage] = useState<string | null>(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Add search state
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load fonts
   useEffect(() => {
@@ -84,18 +89,50 @@ export default function App() {
     setBgImages(images);
   }, []);
 
-  // Load stats from localStorage
+  // Load custom background from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('yuanbao_daily_stats');
-    if (saved) setDailyStats(JSON.parse(saved));
+    const savedCustomBg = localStorage.getItem('yuanbao_custom_bg');
+    if (savedCustomBg) {
+      setCustomBgImage(savedCustomBg);
+    }
   }, []);
 
-  // Save stats to localStorage
+  // Save custom background to localStorage
+  useEffect(() => {
+    if (customBgImage) {
+      localStorage.setItem('yuanbao_custom_bg', customBgImage);
+    } else {
+      localStorage.removeItem('yuanbao_custom_bg');
+    }
+  }, [customBgImage]);
+
+  // Load stats from localStorage - YES, calendar check-in uses localStorage!
+  useEffect(() => {
+    const saved = localStorage.getItem('yuanbao_daily_stats');
+    if (saved) {
+      try {
+        setDailyStats(JSON.parse(saved));
+        console.log('Loaded check-in stats from localStorage:', JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse check-in stats', e);
+      }
+    }
+  }, []);
+
+  // Save stats to localStorage whenever they change
   useEffect(() => {
     if (Object.keys(dailyStats).length > 0) {
       localStorage.setItem('yuanbao_daily_stats', JSON.stringify(dailyStats));
+      console.log('Saved check-in stats to localStorage:', dailyStats);
     }
   }, [dailyStats]);
+
+  // Filter sutras based on search query
+  const filteredSutras = sutras.filter(sutra => 
+    sutra.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    sutra.translator.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    sutra.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const toggleCheckin = (dateStr: string) => {
     setDailyStats(prev => {
@@ -163,7 +200,7 @@ export default function App() {
     if (!selectedSutra) return;
     setIsDownloading(true);
     try {
-      const pdfBytes = await generatePDF(selectedSutra, config);
+      const pdfBytes = await generatePDF(selectedSutra, config, customBgImage);
       
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
@@ -182,7 +219,35 @@ export default function App() {
     }
   };
 
-  const currentBgImage = bgImages[config.theme];
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check if file is an image
+      if (!file.type.startsWith('image/')) {
+        alert('請選擇圖片檔案');
+        return;
+      }
+
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('圖片檔案不能超過 5MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setCustomBgImage(result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveCustomBg = () => {
+    setCustomBgImage(null);
+  };
+
+  const currentBgImage = customBgImage || bgImages[config.theme];
 
   // Get font family based on config
   const getFontFamily = () => {
@@ -207,6 +272,15 @@ export default function App() {
           載入字體中...
         </div>
       )}
+
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept="image/*"
+        className="hidden"
+      />
 
       {/* Navigation */}
       <nav className="h-16 border-b border-black/5 bg-white/80 backdrop-blur-md sticky top-0 z-50 flex items-center justify-between px-8">
@@ -245,28 +319,69 @@ export default function App() {
                 </p>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {sutras.map(sutra => (
-                  <div 
-                    key={sutra.id}
-                    className="group bg-white border border-black/5 p-8 hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden"
-                    onClick={() => {
-                      setSelectedSutra(sutra);
-                      setPreviewPage(1);
-                      setView('detail');
-                    }}
-                  >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 -mr-12 -mt-12 rotate-45 group-hover:bg-amber-100 transition-colors" />
-                    <h3 className="text-2xl font-bold mb-2 tracking-widest">{sutra.title}</h3>
-                    <p className="text-amber-700 text-sm mb-4 font-medium">{sutra.translator}</p>
-                    <p className="text-gray-500 text-sm line-clamp-3 leading-relaxed mb-6">{sutra.description}</p>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
-                      <span className="text-xs text-gray-400 uppercase tracking-widest">{sutra.word_count} 字</span>
-                      <span className="text-xs font-bold uppercase tracking-widest group-hover:text-amber-600 transition-colors">立即定製 →</span>
-                    </div>
-                  </div>
-                ))}
+              {/* Search Bar Section */}
+              <div className="max-w-2xl mx-auto mb-12">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="搜尋經文名稱、譯者或描述..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-6 py-4 pl-14 text-lg border border-black/10 rounded-lg focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 transition-all bg-white shadow-sm"
+                  />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 hover:text-gray-600"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                
+                {/* Search Results Count */}
+                <div className="mt-3 text-sm text-gray-500 text-right">
+                  找到 {filteredSutras.length} 部經文
+                </div>
               </div>
+
+              {/* Sutras Grid */}
+              {filteredSutras.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {filteredSutras.map(sutra => (
+                    <div 
+                      key={sutra.id}
+                      className="group bg-white border border-black/5 p-8 hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden"
+                      onClick={() => {
+                        setSelectedSutra(sutra);
+                        setPreviewPage(1);
+                        setView('detail');
+                      }}
+                    >
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 -mr-12 -mt-12 rotate-45 group-hover:bg-amber-100 transition-colors" />
+                      <h3 className="text-2xl font-bold mb-2 tracking-widest">{sutra.title}</h3>
+                      <p className="text-amber-700 text-sm mb-4 font-medium">{sutra.translator}</p>
+                      <p className="text-gray-500 text-sm line-clamp-3 leading-relaxed mb-6">{sutra.description}</p>
+                      <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
+                        <span className="text-xs text-gray-400 uppercase tracking-widest">{sutra.word_count} 字</span>
+                        <span className="text-xs font-bold uppercase tracking-widest group-hover:text-amber-600 transition-colors">立即定製 →</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // No results message
+                <div className="text-center py-16">
+                  <p className="text-xl text-gray-400 mb-4">沒有找到符合「{searchQuery}」的經文</p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-amber-600 hover:text-amber-700 font-medium"
+                  >
+                    清除搜尋
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -396,21 +511,50 @@ export default function App() {
 
                 <div className="space-y-8 flex-1 overflow-auto pr-2">
                   <section>
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 block">主題系統</label>
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="text-xs font-bold uppercase tracking-widest text-gray-400">主題系統</label>
+                      <div className="flex items-center gap-2">
+                        {customBgImage && (
+                          <button
+                            onClick={handleRemoveCustomBg}
+                            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-black/10 hover:border-black/30 rounded transition-all text-gray-500 hover:text-black flex items-center gap-1"
+                          >
+                            <X className="w-3 h-3" />
+                            移除自訂
+                          </button>
+                        )}
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-1.5 border border-black/10 hover:border-black/30 rounded-full transition-all"
+                          title="上傳自訂背景圖片"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       {(Object.keys(THEMES) as ThemeType[]).map(t => (
                         <button
                           key={t}
-                          onClick={() => setConfig({ ...config, theme: t })}
+                          onClick={() => {
+                            setConfig({ ...config, theme: t });
+                            // Don't clear custom bg when selecting theme
+                          }}
                           className={cn(
                             "h-12 border transition-all flex items-center justify-center text-[10px] font-bold uppercase tracking-tighter",
-                            config.theme === t ? "border-black bg-black text-white" : "border-black/10 hover:border-black/30"
+                            config.theme === t && !customBgImage ? "border-black bg-black text-white" : "border-black/10 hover:border-black/30"
                           )}
                         >
                           {THEMES[t].name.split(' ')[0]}
                         </button>
                       ))}
                     </div>
+                    {customBgImage && (
+                      <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        已使用自訂背景圖片
+                      </p>
+                    )}
                   </section>
 
                   <section>
@@ -572,6 +716,9 @@ export default function App() {
                   </div>
                   <p className="text-xs text-gray-400 mt-4 text-center">
                     點擊日期切換打卡狀態
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2 text-center">
+                    ✓ 打卡記錄已自動儲存至瀏覽器
                   </p>
                 </div>
               </div>
